@@ -24,7 +24,7 @@ const encodeImageUrl = (url) => {
   const cipher = crypto.createCipheriv('aes-256-cbc', ENCRYPTION_KEY, iv);
   let encryptedUrl = cipher.update(url, 'utf8', 'base64');
   encryptedUrl += cipher.final('base64');
-  return `http://localhost:3030/image-urls?url=${encodeURIComponent(`${iv.toString('hex')}:${encryptedUrl}`)}`;
+  return `https://ournewsapi.vercel.app/image-urls?url=${encodeURIComponent(`${iv.toString('hex')}:${encryptedUrl}`)}`;
 };
 
 const decodeImageUrl = (encryptedUrl) => {
