@@ -146,15 +146,6 @@ const summarizeArticle = async (req, res) => {
     const url = req.body.url;
     if (!url) return res.status(400).send('URL is required');
 
-    if (url.includes('twitter.com') || url.includes('x.com')) {
-      return res.json({
-        Title: 'Content Not Available',
-        fullText: 'Content Not Available',
-        imageUrl: '',
-        summary: 'Full content is not available at the moment'
-      });
-    }
-
     const data = { url };
     const options = {
       method: 'POST',
@@ -166,8 +157,18 @@ const summarizeArticle = async (req, res) => {
     const response = await axios(options);
     const { full_text, title, img_url, summary } = response.data;
 
+    // Check if fullText or Title is empty or null
+    if (!full_text || !title) {
+      return res.json({
+        Title: 'There is no data available',
+        fullText: 'There is no data available',
+        imageUrl: '',
+        summary: 'There is no data available'
+      });
+    }
+
     const rewrittenText = await rewriteUsingGroq(full_text, "Rewrite the following text and as big response as possible and as detailed text as possible: ");
-    const rewrittenTitle = await rewriteUsingGroq(title, "Rewrite the following title with only one option and single title,Dont give multiple titles and without any explanation and as detailed title as possible: ");
+    const rewrittenTitle = await rewriteUsingGroq(title, "Rewrite the following title with only one option and single title, Don't give multiple titles and without any explanation and as detailed title as possible: ");
 
     res.json({
       Title: rewrittenTitle,
