@@ -208,5 +208,5 @@ app.post('/news-more', getMoreNews);
 app.post('/summarize', summarizeArticle);
 
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+  console.log(`Server is running on port on ${PORT}`);
 });
