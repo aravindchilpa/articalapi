@@ -16,12 +16,13 @@ const PORT = process.env.PORT;
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY; // replace with a secret key
 const IV_LENGTH = 16; // 16 bytes for AES-256-CBC
 const API_URL_BASE = process.env.API;
+const ALGO = process.env.ALGORITHM;
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const cache = new NodeCache({ stdTTL: 3600, checkperiod: 600 }); // TTL of 1 hour
 
 const encodeImageUrl = (url) => {
   const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv('aes-256-cbc', ENCRYPTION_KEY, iv);
+  const cipher = crypto.createCipheriv(ALGO, ENCRYPTION_KEY, iv);
   let encryptedUrl = cipher.update(url, 'utf8', 'base64');
   encryptedUrl += cipher.final('base64');
   return `https://ournewsapi.vercel.app/image-urls?url=${encodeURIComponent(`${iv.toString('hex')}:${encryptedUrl}`)}`;
@@ -81,6 +82,7 @@ const fetchNewsData = async () => {
     const titles = newsList.map(news => news.news_obj.title);
     const rewrittenTitles = await summarizeUsingGroq(titles);
     newsData = newsList.map((news, index) => ({
+      index,
       title: rewrittenTitles[index] || news.news_obj.title,
       content: news.news_obj.content,
       imageUrl: encodeImageUrl(news.news_obj.image_url),
@@ -125,6 +127,7 @@ const getMoreNews = async (req, res) => {
     const rewrittenTitles = await summarizeUsingGroq(titles);
 
     const newsMoreData = newsList.map((news, index) => ({
+      index,
       title: rewrittenTitles[index] || news.news_obj.title,
       content: news.news_obj.content,
       imageUrl: encodeImageUrl(news.news_obj.image_url),
