@@ -13,7 +13,7 @@ app.use(bodyParser.json());
 app.use(cors());
 
 const PORT = process.env.PORT;
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY; // replace with a secret key
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY; // Replace with a secret key
 const IV_LENGTH = 16; // 16 bytes for AES-256-CBC
 const API_URL_BASE = process.env.API;
 const ALGO = process.env.ALGORITHM;
@@ -30,10 +30,18 @@ const encodeImageUrl = (url) => {
 
 const decodeImageUrl = (encryptedUrl) => {
   const [iv, encrypted] = encryptedUrl.split(':');
-  const decipher = crypto.createDecipheriv('aes-256-cbc', ENCRYPTION_KEY, Buffer.from(iv, 'hex'));
+  const decipher = crypto.createDecipheriv(ALGO, ENCRYPTION_KEY, Buffer.from(iv, 'hex'));
   let decryptedUrl = decipher.update(encrypted, 'base64', 'utf8');
   decryptedUrl += decipher.final('utf8');
   return decodeURIComponent(decryptedUrl);
+};
+
+const encryptJsonResponse = (json) => {
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const cipher = crypto.createCipheriv(ALGO, ENCRYPTION_KEY, iv);
+  let encryptedJson = cipher.update(JSON.stringify(json), 'utf8', 'base64');
+  encryptedJson += cipher.final('base64');
+  return `${iv.toString('hex')}:${encryptedJson}`;
 };
 
 const rewriteUsingGroq = async (text, prompt) => {
@@ -49,7 +57,7 @@ const rewriteUsingGroq = async (text, prompt) => {
     });
     return chatCompletion.choices[0]?.message?.content.trim() || '';
   } catch (error) {
-    console.error('Error rewriting using Groq:', error);
+    // console.error('Error rewriting using Groq:', error);
     throw error;
   }
 };
@@ -68,7 +76,7 @@ const summarizeUsingGroq = async (titles) => {
     const completionContent = chatCompletion.choices[0]?.message?.content.trim() || '';
     return completionContent.split('\n').map(title => title.trim());
   } catch (error) {
-    console.error('Error summarizing using Groq:', error);
+    // console.error('Error summarizing using Groq:', error);
     throw error;
   }
 };
@@ -92,7 +100,7 @@ const fetchNewsData = async () => {
     }));
     cache.set('news_data', newsData);
   } catch (error) {
-    console.error('Error fetching news data:', error);
+    // console.error('Error fetching news data:', error);
     newsData = [];
   }
 };
@@ -101,12 +109,16 @@ const getNews = (req, res) => {
   try {
     const cachedData = cache.get('news_data');
     if (cachedData) {
-      res.json(cachedData);
+      const encryptedResponse = encryptJsonResponse(cachedData);
+      res.json({ encryptedData: encryptedResponse });
     } else {
-      fetchNewsData().then(() => res.json(newsData));
+      fetchNewsData().then(() => {
+        const encryptedResponse = encryptJsonResponse(newsData);
+        res.json({ encryptedData: encryptedResponse });
+      });
     }
   } catch (error) {
-    console.error('Error sending news data:', error);
+    // console.error('Error sending news data:', error);
     res.status(500).json({ error: 'Failed to send data' });
   }
 };
@@ -117,7 +129,10 @@ const getMoreNews = async (req, res) => {
     if (!minNewsId) return res.status(400).send('minNewsId is required');
     const cacheKey = `news_more_${minNewsId}`;
     const cachedData = cache.get(cacheKey);
-    if (cachedData) return res.json(cachedData);
+    if (cachedData) {
+      const encryptedResponse = encryptJsonResponse(cachedData);
+      return res.json({ encryptedData: encryptedResponse });
+    }
 
     const url = `${API_URL_BASE}&news_offset=${minNewsId}&cache_bust=${Date.now()}`;
     const response = await axios.get(url, { headers: { 'Cache-Control': 'no-store' } });
@@ -137,9 +152,10 @@ const getMoreNews = async (req, res) => {
     }));
 
     cache.set(cacheKey, newsMoreData);
-    res.json(newsMoreData);
+    const encryptedResponse = encryptJsonResponse(newsMoreData);
+    res.json({ encryptedData: encryptedResponse });
   } catch (error) {
-    console.error('Error fetching more news:', error);
+    // console.error('Error fetching more news:', error);
     res.status(500).json({ error: 'Failed to send data' });
   }
 };
@@ -162,25 +178,25 @@ const summarizeArticle = async (req, res) => {
 
     // Check if fullText or Title is empty or null
     if (!full_text || !title) {
-      return res.json({
-        Title: 'There is no data available',
-        fullText: 'There is no data available',
-        imageUrl: '',
-        summary: 'There is no data available'
-      });
+      const errorMessage = { Title: 'There is no data available', fullText: 'There is no data available', imageUrl: '', summary: 'There is no data available' };
+      const encryptedResponse = encryptJsonResponse(errorMessage);
+      return res.json({ encryptedData: encryptedResponse });
     }
 
     const rewrittenText = await rewriteUsingGroq(full_text, "Rewrite the following text and as big response as possible and as detailed text as possible: ");
     const rewrittenTitle = await rewriteUsingGroq(title, "Rewrite the following title with only one option and single title, Don't give multiple titles and without any explanation and as detailed title as possible: ");
 
-    res.json({
+    const articleData = {
       Title: rewrittenTitle,
       fullText: rewrittenText,
       imageUrl: encodeImageUrl(img_url),
       summary: summary
-    });
+    };
+
+    const encryptedResponse = encryptJsonResponse(articleData);
+    res.json({ encryptedData: encryptedResponse });
   } catch (error) {
-    console.error('Error summarizing article:', error);
+    // console.error('Error summarizing article:', error);
     res.status(500).json({ error: 'Failed to summarize article' });
   }
 };
@@ -198,7 +214,7 @@ app.get('/image-urls', async (req, res) => {
     res.setHeader('Content-Type', response.headers['content-type']);
     response.data.pipe(res);
   } catch (error) {
-    console.error('Error fetching the image:', error);
+    // console.error('Error fetching the image:', error);
     res.status(500).send('Error fetching the image');
   }
 });
@@ -208,5 +224,5 @@ app.post('/news-more', getMoreNews);
 app.post('/summarize', summarizeArticle);
 
 app.listen(PORT, () => {
-  console.log(`Server is running on port on ${PORT}`);
+//   console.log(`Server is running on port ${PORT}`);
 });
